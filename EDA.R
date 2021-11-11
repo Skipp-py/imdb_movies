@@ -24,6 +24,60 @@ imdb_movies$Frightening <- as.factor(imdb_movies$Frightening)
 # Viewing the data
 View(imdb_movies)
 
+colnames(imdb_movies)
+
 # Summary Statistics
 summary(imdb_movies)
 
+released_movies <- imdb_movies %>% 
+  filter(Date < '2022') %>%
+  drop_na() %>%
+  unique()
+
+summary(released_movies)
+
+
+released_movies %>% 
+  ggplot(aes(x = Certificate, y = Rate, col = Certificate)) + geom_boxplot()
+
+released_movies %>% 
+  ggplot(aes(x = Certificate, y = Votes, col = Certificate)) + geom_boxplot()
+
+released_movies %>% 
+  ggplot(aes(x = Nudity, y = Rate, col = Nudity)) + geom_boxplot()
+
+released_movies %>% 
+  ggplot(aes(x = Violence, y = Rate, col = Violence)) + geom_boxplot()
+
+released_movies %>% 
+  ggplot(aes(x = Profanity, y = Rate, col = Profanity)) + geom_boxplot()
+
+released_movies %>% 
+  ggplot(aes(x = Alcohol, y = Rate, col = Alcohol)) + geom_boxplot()
+
+released_movies %>% 
+  ggplot(aes(x = Frightening, y = Rate, col = Frightening)) + geom_boxplot()
+
+released_movies %>% 
+  ggplot(aes(Rate)) + 
+  geom_histogram(color="darkblue", fill="lightblue") + 
+  geom_vline(aes(xintercept=mean(Rate)),
+             color="blue", 
+             linetype="dashed", 
+             size=1)
+
+released_movies %>% 
+  ggplot(aes(log(Votes))) + 
+  geom_histogram(color="darkblue", fill="lightblue") + 
+  geom_vline(aes(xintercept=mean(log(Votes))),
+             color="blue", 
+             linetype="dashed", 
+             size=1)
+
+released_movies %>% 
+  select(c(Date,Rate,Votes,Duration)) %>% 
+  drop_na() %>%
+  cor()
+
+
+profanity_movies
