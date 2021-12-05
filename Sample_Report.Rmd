@@ -1,0 +1,279 @@
+---
+title: "Imdb_Movie_Analysis"
+author: "David Kressley"
+date: "12/1/2021"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(lubridate)
+```
+
+
+```{r}
+imdb <- read_csv("imdb.csv", 
+                 col_types = cols(Date = col_date(format = "%Y"), 
+                                  Rate = col_number(), 
+                                  Votes = col_number(), 
+                                  Duration = col_number()))
+```
+```{r}
+library(DataExplorer)
+
+imdb <- imdb[-c(1,2,6,31)]
+
+imdb$Date <- year(imdb$Date)
+
+imdb_cleaned <- imdb %>% 
+  filter(Date < '2022') 
+```
+
+```{r}
+
+imdb_cleaned$Certificate <- as.factor(imdb_cleaned$Certificate)
+
+imdb_cleaned[imdb_cleaned == 'No Rate'] <- NA
+imdb_cleaned <- imdb_cleaned %>%
+                  drop_na() %>%
+                  unique()
+
+imdb_factors <- list('Alcohol', 'Frightening', 'Nudity', 'Profanity', 'Violence')
+
+for(feat in imdb_factors){
+  imdb_cleaned[[feat]] <- ordered(imdb_cleaned[[feat]], levels = c("None", "Mild", "Moderate", 'Severe'))
+}
+
+```
+
+
+
+```{r}
+# Shape of data
+dim(imdb_cleaned)
+
+# Feature types
+print(sapply(imdb_cleaned, class))
+
+plot_intro(imdb_cleaned)
+```
+
+```{r}
+imdb_cleaned %>% 
+  ggplot(aes(x = Certificate, y = Rate, col = Certificate)) + geom_boxplot()
+```
+
+```{r}
+summary(imdb_cleaned)
+```
+
+
+
+```{r, figures-side, fig.show="hold", out.width="50%"}
+par(mfrow=c(2,2))
+
+imdb_continous <- list('Date', 'Duration', 'Rate', 'Votes')
+
+for(feat in imdb_continous){
+  hist(imdb_cleaned[[feat]], main = paste('Frequency of ',feat), xlab = feat, ylab = 'Frequncy')
+}
+
+ hist(log(imdb_cleaned$Votes), main = 'Frequency of LogVotes', xlab = 'LogVotes', ylab = 'Frequncy')
+
+
+```
+
+```{r}
+
+imdb_scatter_feat <- colnames(imdb_cleaned[-c(2,3)])
+
+for(i in imdb_scatter_feat){
+  imdb_cleaned %>% ggplot(aes(x = i, y = Rate)) + geom_point()
+  print(plot)
+}
+```
+
+
+
+```{r}
+library(ggridges)
+library(gridExtra)
+
+p1 <- ggplot(imdb_cleaned, aes(x = Rate, y = Alcohol, fill = Alcohol, alpha = .7)) +
+  geom_density_ridges(quantile_lines = TRUE) + 
+  theme_ridges() + 
+  theme(legend.position = 'none')
+
+p2 <- ggplot(imdb_cleaned, aes(x = Rate, y = Frightening, fill = Frightening, alpha = .7)) +
+  geom_density_ridges(quantile_lines = TRUE) + 
+  theme_ridges() + 
+  theme(legend.position = 'none')
+
+p3 <- ggplot(imdb_cleaned, aes(x = Rate, y = Nudity, fill = Nudity, alpha = .7)) +
+  geom_density_ridges(quantile_lines = TRUE) + 
+  theme_ridges() + 
+  theme(legend.position = 'none')
+
+p4 <- ggplot(imdb_cleaned, aes(x = Rate, y = Profanity, fill = Profanity, alpha = .7)) +
+  geom_density_ridges(quantile_lines = TRUE) + 
+  theme_ridges() + 
+  theme(legend.position = 'none')
+
+p5 <- ggplot(imdb_cleaned, aes(x = Rate, y = Violence, fill = Violence, alpha = .7)) +
+  geom_density_ridges(quantile_lines = TRUE) + 
+  theme_ridges() + 
+  theme(legend.position = 'none')
+
+p1
+p2 
+p3 
+p4
+p5
+```
+```{r}
+library(fmsb)
+library(RColorBrewer)
+library(scales)
+
+# Color vectors
+coul <- brewer.pal(3,'Set1')
+colors_border <- coul
+
+for(i in 4:26){
+  
+  current_feature <- colnames(imdb_cleaned[i])
+  
+  imdb_select <- imdb_cleaned %>% select(current_feature, 'Alcohol', 'Frightening', 'Nudity', 'Profanity', 'Violence')
+  
+  imdb_cleaned
+  
+  feature_count <- imdb_select %>% group_by(imdb_select[1]) %>% count(imdb_select[1])
+  
+  movie_without <- imdb_select %>% filter(imdb_select[1] == 0) %>% 
+    summarize(Alcohol = sum(Alcohol != 'None'),
+              Frightening = sum(Frightening != 'None'),
+              Nudity = sum(Nudity != 'None'),
+              Profanity = sum(Profanity != 'None'),
+              Violence = sum(Violence != 'None'))
+
+  movie_with <- imdb_select %>% filter(imdb_select[1] == 1) %>%
+    summarize(Alcohol = sum(Alcohol != 'None'),
+              Frightening = sum(Frightening != 'None'),
+              Nudity = sum(Nudity != 'None'),
+              Profanity = sum(Profanity != 'None'),
+              Violence = sum(Violence != 'None'))
+  
+  feature_count <- rbind(movie_without, movie_with) %>% cbind(feature_count)
+  
+  for(i in imdb_factors){
+    feature_count[i] = feature_count[i] / feature_count['n']
+  }
+  
+  feature_count <- feature_count %>%
+    select(unlist(imdb_factors))
+
+  feature_count <- rbind(rep(1,5) , rep(0,5) , feature_count)
+  row.names(feature_count) <- c('Max','Min',paste0('Not_', colnames(imdb_select[1])),paste0(colnames(imdb_select[1])))
+  
+  # plot with default options:
+  radarchart(feature_count  , axistype=1 , 
+    #custom polygon
+    pcol=colors_border, plwd=4 , plty=1,
+    #custom the grid
+    cglcol="grey", cglty=1, axislabcol="grey", cglwd=0.5,
+    #custom labels
+    vlcex=0.8 
+    )
+  legend(x=1, y=1, legend = rownames(feature_count[-c(1,2),]), bty = "n", pch=20 , col=colors_border , text.col = "black")
+}
+```
+
+
+```{r}
+# Load library to begin tree modeling
+library(tree)
+
+# Creating a copy df to begin modeling
+imdb_copy <- data.frame(imdb_cleaned)
+
+# Code to save -unused
+for(i in imdb_factors){
+ imdb_copy[[i]] <- as.numeric(imdb_copy[[i]] )
+}
+
+## Regression Tree
+
+# Creating saturated model to test Votes vs all features - Rate
+model_tree_v <- tree(Votes~ . -Rate, control=tree.control(nobs = 3225, mindev = 0.01), data = imdb_copy) 
+summary(model_tree_v)
+plot(model_tree_v)
+text(model_tree_v,pretty=0)
+
+# Creating saturated model to test log(Votes) vs all features - Rate
+model_tree_lv <- tree(log(Votes)~ . -Rate, control=tree.control(nobs = 3225, mindev = 0.01), data = imdb_copy) 
+summary(model_tree_lv)
+plot(model_tree_lv)
+text(model_tree_lv,pretty=0)
+
+
+# Creating saturated model to test Rate vs all features - Votes
+model_tree_r <- tree(Rate~ . -Votes, control=tree.control(nobs = 3225, mindev = 0.01), data = imdb_copy) 
+summary(model_tree_r)
+plot(model_tree_r)
+text(model_tree_r,pretty=0)
+
+
+# Creating saturated model to test Rate vs all features, log(Votes) 
+model_tree_lr <- tree(Rate~. + log(Votes) -Votes, control=tree.control(nobs = 3225, mindev = 0.01), data = imdb_copy) 
+summary(model_tree_lr)
+plot(model_tree_lr)
+text(model_tree_lr,pretty=0)
+```
+
+
+```{r}
+# Cross Validating a tree
+model_tree_r_cv <- cv.tree(model_tree_r)
+
+plot(model_tree_r_cv$size, model_tree_r_cv$dev, type = 'b')
+cbind('Size' = model_tree_r_cv$size, 'Deviance' = model_tree_r_cv$dev)
+```
+
+```{r}
+# # Training Regression Tree Model
+# set.seed(123)
+# 
+# train <- sample(1:nrow(imdb_cleaned), 0.7 * nrow(imdb_cleaned))
+# 
+# model_tree_train <- tree(Rate ~., imdb_cleaned, subset = train)
+# 
+# yhat <- predict(model_tree_train, newdata = imdb_cleaned[-train,])
+# 
+# model_tree_test <- imdb_cleaned[-train, 'Rate']
+# 
+# plot(yhat, model_tree_test)
+# abline(0,1)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
